@@ -9,83 +9,83 @@ import (
 )
 
 const (
-	memoryCost  = 64 * 1024
-	timeCost    = 1
-	threads     = 4
-	keyLength   = 32
-	saltLength  = 16
+	argonTime    = 1
+	argonMemory  = 64 * 1024 // 64 MB
+	argonThreads = 1
+	argonKeyLen  = 32
 )
 
-// Generate random salt
-func generateSalt() ([]byte, error) {
-	salt := make([]byte, saltLength)
-	_, err := rand.Read(salt)
-	if err != nil {
-		return nil, err
-	}
-	return salt, nil
-}
-
-// Hash password using Argon2id
+// HashPassword generates an Argon2id hash for a plaintext password.
 func HashPassword(password string) (string, error) {
-	salt, err := generateSalt()
+	salt := make([]byte, 16)
+	_, err := rand.Read(salt)
 	if err != nil {
 		return "", err
 	}
 
-	hash := argon2.IDKey([]byte(password), salt, timeCost, memoryCost, threads, keyLength)
+	hash := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
 
-	encoded := base64.RawStdEncoding.EncodeToString(salt) + ":" +
-		base64.RawStdEncoding.EncodeToString(hash)
+	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
-	return encoded, nil
+	// Format: salt$hash
+	return b64Salt + "$" + b64Hash, nil
 }
 
-// Compare a password against stored hash
-func VerifyPassword(password, encoded string) (bool, error) {
-	parts := split(encoded, ':')
+// VerifyPassword compares a plaintext password with an Argon2id stored hash.
+func VerifyPassword(password, stored string) (bool, error) {
+	parts := split(stored, '$')
 	if len(parts) != 2 {
-		return false, errors.New("invalid encoded password format")
+		return false, errors.New("invalid password hash format")
 	}
 
-	salt, err := base64.RawStdEncoding.DecodeString(parts[0])
+	saltBytes, err := base64.RawStdEncoding.DecodeString(parts[0])
 	if err != nil {
 		return false, err
 	}
 
-	hash, err := base64.RawStdEncoding.DecodeString(parts[1])
+	hashBytes, err := base64.RawStdEncoding.DecodeString(parts[1])
 	if err != nil {
 		return false, err
 	}
 
-	newHash := argon2.IDKey([]byte(password), salt, timeCost, memoryCost, threads, keyLength)
+	calculated := argon2.IDKey([]byte(password), saltBytes, argonTime, argonMemory, argonThreads, uint32(len(hashBytes)))
 
-	return subtleCompare(hash, newHash), nil
+	if subtleConstantCompare(calculated, hashBytes) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
-// constant time compare
-func subtleCompare(a, b []byte) bool {
+// ---- Helpers ----
+
+func split(s string, sep rune) []string {
+	var parts []string
+	current := ""
+
+	for _, c := range s {
+		if c == sep {
+			parts = append(parts, current)
+			current = ""
+		} else {
+			current += string(c)
+		}
+	}
+	parts = append(parts, current)
+
+	return parts
+}
+
+func subtleConstantCompare(a, b []byte) bool {
 	if len(a) != len(b) {
 		return false
 	}
 
-	var result byte = 0
-	for i := range a {
+	var result byte
+	for i := 0; i < len(a); i++ {
 		result |= a[i] ^ b[i]
 	}
 
 	return result == 0
-}
-
-func split(s string, sep byte) []string {
-	var result []string
-	last := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == sep {
-			result = append(result, s[last:i])
-			last = i + 1
-		}
-	}
-	result = append(result, s[last:])
-	return result
 }

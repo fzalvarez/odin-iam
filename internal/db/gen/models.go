@@ -94,6 +94,15 @@ type User struct {
 	UpdatedAt   time.Time
 }
 
+type UserCredential struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	PasswordHash  string
+	LastChangedAt time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type UserEmail struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
