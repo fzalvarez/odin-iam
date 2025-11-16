@@ -12,6 +12,8 @@ func NewRouter() *chi.Mux {
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	
+	// temporary CORS
 	r.Use(middleware.AllowContentType("application/json"))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

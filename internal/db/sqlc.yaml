@@ -1,0 +1,16 @@
+version: "2"
+
+sql:
+  - schema: 
+      - "internal/db/migrations/001_init.sql"
+    queries: "internal/db/queries"
+    engine: "postgresql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db/gen"
+        sql_package: "database/sql"
+        emit_interface: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        emit_exported_queries: true
