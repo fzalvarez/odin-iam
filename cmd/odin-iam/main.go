@@ -4,18 +4,22 @@ import (
 	"log"
 	"net/http"
 
-	//"github.com/go-chi/chi/v5"
 	"github.com/fzalvarez/odin-iam/internal/api"
+	"github.com/fzalvarez/odin-iam/internal/config"
 )
 
 func main() {
-	//r := chi.NewRouter()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config error: %v", err)
+	}
+
 	r := api.NewRouter()
 
-	/* r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"status":"ok"}`))
-	}) */
+	addr := ":" + cfg.Port
+	log.Printf("odin-iam running on %s\n", addr)
 
-	log.Println("IAM service running on :8080")
-	http.ListenAndServe(":8080", r)
+	if err := http.ListenAndServe(addr, r); err != nil {
+		log.Fatal(err)
+	}
 }

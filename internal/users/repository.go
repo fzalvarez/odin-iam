@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"database/sql"
 
 	db "github.com/fzalvarez/odin-iam/internal/db/gen"
 	"github.com/google/uuid"
@@ -18,8 +19,14 @@ func NewRepository(q *db.Queries) *Repository {
 // Create user
 func (r *Repository) CreateUser(ctx context.Context, tenantID uuid.UUID, displayName string) (db.User, error) {
 	return r.q.InsertUser(ctx, db.InsertUserParams{
-		TenantID:    tenantID,
-		DisplayName: displayName,
+		TenantID: uuid.NullUUID{
+			UUID:  tenantID,
+			Valid: true,
+		},
+		DisplayName: sql.NullString{
+			String: displayName,
+			Valid:  true,
+		},
 	})
 }
 
@@ -35,5 +42,8 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (db.User,
 
 // List users by tenant
 func (r *Repository) ListUsersByTenant(ctx context.Context, tenantID uuid.UUID) ([]db.User, error) {
-	return r.q.ListUsersByTenant(ctx, tenantID)
+	return r.q.ListUsersByTenant(ctx, uuid.NullUUID{
+		UUID:  tenantID,
+		Valid: true,
+	})
 }

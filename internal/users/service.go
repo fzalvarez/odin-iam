@@ -2,6 +2,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"github.com/google/uuid"
 )
@@ -14,8 +16,11 @@ func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// Create a new user
 func (s *Service) CreateUser(ctx context.Context, tenantID, displayName string) (*UserModel, error) {
+	if displayName == "" {
+		return nil, errors.New("display name cannot be empty")
+	}
+
 	tid, err := uuid.Parse(tenantID)
 	if err != nil {
 		return nil, err
@@ -28,13 +33,12 @@ func (s *Service) CreateUser(ctx context.Context, tenantID, displayName string) 
 
 	return &UserModel{
 		ID:          user.ID.String(),
-		TenantID:    user.TenantID.UUID.String(),
-		DisplayName: user.DisplayName,
+		TenantID:    nullUUIDToString(user.TenantID),
+		DisplayName: nullStringToString(user.DisplayName),
 		CreatedAt:   user.CreatedAt,
 	}, nil
 }
 
-// Get user by ID
 func (s *Service) GetUserByID(ctx context.Context, id string) (*UserModel, error) {
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -48,13 +52,12 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (*UserModel, error
 
 	return &UserModel{
 		ID:          user.ID.String(),
-		TenantID:    user.TenantID.UUID.String(),
-		DisplayName: user.DisplayName,
+		TenantID:    nullUUIDToString(user.TenantID),
+		DisplayName: nullStringToString(user.DisplayName),
 		CreatedAt:   user.CreatedAt,
 	}, nil
 }
 
-// List users by tenant
 func (s *Service) ListByTenant(ctx context.Context, tenantID string) ([]UserModel, error) {
 	tid, err := uuid.Parse(tenantID)
 	if err != nil {
@@ -71,11 +74,25 @@ func (s *Service) ListByTenant(ctx context.Context, tenantID string) ([]UserMode
 	for _, u := range list {
 		out = append(out, UserModel{
 			ID:          u.ID.String(),
-			TenantID:    u.TenantID.UUID.String(),
-			DisplayName: u.DisplayName,
+			TenantID:    nullUUIDToString(u.TenantID),
+			DisplayName: nullStringToString(u.DisplayName),
 			CreatedAt:   u.CreatedAt,
 		})
 	}
 
 	return out, nil
+}
+
+func nullUUIDToString(n uuid.NullUUID) string {
+	if n.Valid {
+		return n.UUID.String()
+	}
+	return ""
+}
+
+func nullStringToString(s sql.NullString) string {
+	if s.Valid {
+		return s.String
+	}
+	return ""
 }
