@@ -21,9 +21,10 @@ func (s *Service) CreateUser(ctx context.Context, tenantID, displayName string) 
 		return nil, errors.New("display name cannot be empty")
 	}
 
+	// Parse tenantID (igual que en sesiones y otros servicios)
 	tid, err := uuid.Parse(tenantID)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("invalid tenant id")
 	}
 
 	user, err := s.repo.CreateUser(ctx, tid, displayName)
@@ -61,7 +62,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (*UserModel, error
 func (s *Service) ListByTenant(ctx context.Context, tenantID string) ([]UserModel, error) {
 	tid, err := uuid.Parse(tenantID)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("invalid tenant id")
 	}
 
 	list, err := s.repo.ListUsersByTenant(ctx, tid)
@@ -70,7 +71,6 @@ func (s *Service) ListByTenant(ctx context.Context, tenantID string) ([]UserMode
 	}
 
 	out := make([]UserModel, 0, len(list))
-
 	for _, u := range list {
 		out = append(out, UserModel{
 			ID:          u.ID.String(),
@@ -79,7 +79,6 @@ func (s *Service) ListByTenant(ctx context.Context, tenantID string) ([]UserMode
 			CreatedAt:   u.CreatedAt,
 		})
 	}
-
 	return out, nil
 }
 

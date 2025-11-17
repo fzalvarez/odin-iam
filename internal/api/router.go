@@ -3,11 +3,17 @@ package api
 import (
 	"net/http"
 
+	"github.com/fzalvarez/odin-iam/internal/api/handlers"
+	"github.com/fzalvarez/odin-iam/internal/auth"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter() http.Handler {
+type RouterParams struct {
+	AuthService *auth.AuthService
+}
+
+func NewRouter(p RouterParams) http.Handler {
 	r := chi.NewRouter()
 
 	// Middlewares básicos
@@ -22,11 +28,13 @@ func NewRouter() http.Handler {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Aquí más adelante montaremos:
-	// - /auth/*
-	// - /tenants/*
-	// - /users/*
-	// - etc.
+	// Auth handler
+	authHandler := handlers.NewAuthHandler(p.AuthService)
+
+	// Auth endpoints
+	r.Post("/auth/register", authHandler.Register)
+	r.Post("/auth/login", authHandler.Login)
+	r.Post("/auth/refresh", authHandler.Refresh)
 
 	return r
 }

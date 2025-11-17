@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"database/sql"
 )
 
 type Service struct {
@@ -16,19 +17,35 @@ func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) CreateSession(ctx context.Context, userID, tenantID, refreshToken string, ttl time.Duration) (*SessionModel, error) {
+func (s *Service) CreateSession(
+	ctx context.Context,
+	userID string,
+	tenantID string,
+	refreshToken string,
+	ttl time.Duration,
+) (*SessionModel, error) {
+
+	// Parse userID
 	uid, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, errors.New("invalid user id")
 	}
 
-	tid, err := uuid.Parse(tenantID)
-	if err != nil {
-		return nil, errors.New("invalid tenant id")
+	// Parse tenantID (or set NULL)
+	var tid uuid.UUID
+	if tenantID != "" {
+		tid, err = uuid.Parse(tenantID)
+		if err != nil {
+			return nil, errors.New("invalid tenant id")
+		}
+	} else {
+		tid = uuid.Nil
 	}
 
+	// Expiration
 	expires := time.Now().UTC().Add(ttl)
 
+	// Repository call (UUID-based)
 	sess, err := s.repo.CreateSession(ctx, uid, tid, refreshToken, expires)
 	if err != nil {
 		return nil, err
@@ -79,6 +96,13 @@ func (s *Service) Cleanup(ctx context.Context) error {
 func nullUUIDToString(n uuid.NullUUID) string {
 	if n.Valid {
 		return n.UUID.String()
+	}
+	return ""
+}
+
+func nullStringToString(s sql.NullString) string {
+	if s.Valid {
+		return s.String
 	}
 	return ""
 }

@@ -16,13 +16,19 @@ func NewRepository(q *db.Queries) *Repository {
 	return &Repository{q: q}
 }
 
-// Create user
+// CreateUser crea un usuario con tenant opcional.
+// tenantID == uuid.Nil  → tenant_id NULL
 func (r *Repository) CreateUser(ctx context.Context, tenantID uuid.UUID, displayName string) (db.User, error) {
-	return r.q.InsertUser(ctx, db.InsertUserParams{
-		TenantID: uuid.NullUUID{
+	t := uuid.NullUUID{}
+	if tenantID != uuid.Nil {
+		t = uuid.NullUUID{
 			UUID:  tenantID,
 			Valid: true,
-		},
+		}
+	}
+
+	return r.q.InsertUser(ctx, db.InsertUserParams{
+		TenantID: t,
 		DisplayName: sql.NullString{
 			String: displayName,
 			Valid:  true,
@@ -30,20 +36,23 @@ func (r *Repository) CreateUser(ctx context.Context, tenantID uuid.UUID, display
 	})
 }
 
-// Get user by ID
 func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error) {
 	return r.q.GetUserByID(ctx, id)
 }
 
-// Get user by email
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (db.User, error) {
 	return r.q.GetUserByEmail(ctx, email)
 }
 
-// List users by tenant
+// ListUsersByTenant recibe uuid.UUID.
+// uuid.Nil → tenant_id NULL
 func (r *Repository) ListUsersByTenant(ctx context.Context, tenantID uuid.UUID) ([]db.User, error) {
-	return r.q.ListUsersByTenant(ctx, uuid.NullUUID{
-		UUID:  tenantID,
-		Valid: true,
-	})
+	t := uuid.NullUUID{}
+	if tenantID != uuid.Nil {
+		t = uuid.NullUUID{
+			UUID:  tenantID,
+			Valid: true,
+		}
+	}
+	return r.q.ListUsersByTenant(ctx, t)
 }
