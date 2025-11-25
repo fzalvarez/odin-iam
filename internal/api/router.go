@@ -4,13 +4,20 @@ import (
 	"net/http"
 
 	"github.com/fzalvarez/odin-iam/internal/api/handlers"
+	"github.com/fzalvarez/odin-iam/internal/api/middlewares"
 	"github.com/fzalvarez/odin-iam/internal/auth"
+	"github.com/fzalvarez/odin-iam/internal/roles"
+	"github.com/fzalvarez/odin-iam/internal/tenants"
+	"github.com/fzalvarez/odin-iam/internal/users"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 type RouterParams struct {
-	AuthService *auth.AuthService
+	AuthService   *auth.AuthService
+	UserService   *users.Service
+	TenantService *tenants.Service
+	RoleService   *roles.RoleService
 }
 
 func NewRouter(p RouterParams) http.Handler {
@@ -28,13 +35,35 @@ func NewRouter(p RouterParams) http.Handler {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Auth handler
+	// Handlers
 	authHandler := handlers.NewAuthHandler(p.AuthService)
+	userHandler := handlers.NewUserHandler(p.UserService)
+	tenantHandler := handlers.NewTenantHandler(p.TenantService)
+	roleHandler := handlers.NewRoleHandler(p.RoleService)
 
-	// Auth endpoints
+	// Public endpoints
 	r.Post("/auth/register", authHandler.Register)
 	r.Post("/auth/login", authHandler.Login)
 	r.Post("/auth/refresh", authHandler.Refresh)
+
+	// Protected endpoints
+	r.Group(func(r chi.Router) {
+		r.Use(middlewares.AuthMiddleware)
+
+		// Users
+		// Ejemplo: Solo usuarios con permiso 'users:create' pueden crear usuarios
+		r.With(middlewares.RequirePermission(p.RoleService, "users:create")).Post("/users", userHandler.Create)
+		r.Get("/users/{id}", userHandler.GetByID)
+
+		// Tenants
+		r.With(middlewares.RequirePermission(p.RoleService, "tenants:create")).Post("/tenants", tenantHandler.Create)
+		r.Get("/tenants/{id}", tenantHandler.GetByID)
+
+		// Roles (RBAC)
+		r.With(middlewares.RequirePermission(p.RoleService, "roles:create")).Post("/roles", roleHandler.Create)
+		r.Get("/roles/{id}", roleHandler.GetByID)
+		r.With(middlewares.RequirePermission(p.RoleService, "roles:assign")).Post("/users/{id}/roles", roleHandler.AssignToUser)
+	})
 
 	return r
 }

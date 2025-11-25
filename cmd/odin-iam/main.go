@@ -8,7 +8,9 @@ import (
 	"github.com/fzalvarez/odin-iam/internal/auth"
 	dbconn "github.com/fzalvarez/odin-iam/internal/db"
 	dbgen "github.com/fzalvarez/odin-iam/internal/db/gen"
+	"github.com/fzalvarez/odin-iam/internal/roles"
 	"github.com/fzalvarez/odin-iam/internal/sessions"
+	"github.com/fzalvarez/odin-iam/internal/tenants"
 	"github.com/fzalvarez/odin-iam/internal/users"
 )
 
@@ -28,18 +30,26 @@ func main() {
 	emailRepo := users.NewEmailsRepository(q)
 	credRepo := auth.NewCredentialsRepository(q)
 	sessionRepo := sessions.NewRepository(q)
+	tenantRepo := tenants.NewRepository(q)
+	roleRepo := roles.NewMockRepository() // TODO: Reemplazar con implementación SQL real
 
-	// 4. Crear servicio de autenticación
+	// 4. Crear servicios
 	authService := auth.NewService(
 		userRepo,
 		emailRepo,
 		credRepo,
 		sessionRepo,
 	)
+	userService := users.NewService(userRepo)
+	tenantService := tenants.NewService(tenantRepo)
+	roleService := roles.NewRoleService(roleRepo)
 
 	// 5. Crear router con dependencias
 	r := api.NewRouter(api.RouterParams{
-		AuthService: authService,
+		AuthService:   authService,
+		UserService:   userService,
+		TenantService: tenantService,
+		RoleService:   roleService,
 	})
 
 	// 6. Iniciar servidor
