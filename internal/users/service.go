@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -27,7 +28,16 @@ func (s *Service) CreateUser(ctx context.Context, tenantID, displayName string) 
 		return nil, errors.New("invalid tenant id")
 	}
 
-	user, err := s.repo.CreateUser(ctx, tid, displayName)
+	user := &User{
+		ID:          uuid.NewString(),
+		TenantID:    tenantID,
+		DisplayName: displayName,
+		IsActive:    true, // Activo por defecto
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	_, err = s.repo.CreateUser(ctx, tid, displayName)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +90,10 @@ func (s *Service) ListByTenant(ctx context.Context, tenantID string) ([]UserMode
 		})
 	}
 	return out, nil
+}
+
+func (s *Service) UpdateStatus(ctx context.Context, id string, isActive bool) error {
+	return s.repo.UpdateStatus(ctx, id, isActive)
 }
 
 func nullUUIDToString(n uuid.NullUUID) string {

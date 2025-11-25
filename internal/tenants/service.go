@@ -3,6 +3,7 @@ package tenants
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -16,21 +17,25 @@ func NewService(repo *Repository) *Service {
 }
 
 // CreateTenant creates a new tenant
-func (s *Service) CreateTenant(ctx context.Context, name string) (*TenantModel, error) {
+func (s *Service) CreateTenant(ctx context.Context, name string) (*Tenant, error) {
 	if name == "" {
 		return nil, errors.New("tenant name cannot be empty")
 	}
 
-	tenant, err := s.repo.CreateTenant(ctx, name)
+	tenant := &Tenant{
+		ID:        uuid.NewString(),
+		Name:      name,
+		IsActive:  true, // Activo por defecto
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err := s.repo.CreateTenant(ctx, tenant)
 	if err != nil {
 		return nil, err
 	}
 
-	return &TenantModel{
-		ID:        tenant.ID.String(),
-		Name:      tenant.Name,
-		CreatedAt: tenant.CreatedAt,
-	}, nil
+	return tenant, nil
 }
 
 // GetTenantByID retrieves a tenant by UUID
@@ -70,4 +75,8 @@ func (s *Service) ListTenants(ctx context.Context) ([]TenantModel, error) {
 	}
 
 	return out, nil
+}
+
+func (s *Service) UpdateStatus(ctx context.Context, id string, isActive bool) error {
+	return s.repo.UpdateStatus(ctx, id, isActive)
 }

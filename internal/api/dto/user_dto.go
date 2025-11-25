@@ -25,3 +25,12 @@ type UserResponse struct {
 	DisplayName string    `json:"display_name"`
 	CreatedAt   time.Time `json:"created_at"`
 }
+
+type UpdateStatusRequest struct {
+	IsActive bool `json:"is_active"`
+}
+
+func (r *UpdateStatusRequest) Validate() error {
+	// Booleano no requiere validación de "required" ya que false es un valor válido.
+	return nil
+}

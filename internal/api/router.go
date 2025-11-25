@@ -54,10 +54,12 @@ func NewRouter(p RouterParams) http.Handler {
 		// Ejemplo: Solo usuarios con permiso 'users:create' pueden crear usuarios
 		r.With(middlewares.RequirePermission(p.RoleService, "users:create")).Post("/users", userHandler.Create)
 		r.Get("/users/{id}", userHandler.GetByID)
+		r.With(middlewares.RequirePermission(p.RoleService, "users:manage_status")).Put("/users/{id}/status", userHandler.UpdateStatus)
 
 		// Tenants
 		r.With(middlewares.RequirePermission(p.RoleService, "tenants:create")).Post("/tenants", tenantHandler.Create)
 		r.Get("/tenants/{id}", tenantHandler.GetByID)
+		r.With(middlewares.RequirePermission(p.RoleService, "tenants:manage_status")).Put("/tenants/{id}/status", tenantHandler.UpdateStatus)
 
 		// Roles (RBAC)
 		r.With(middlewares.RequirePermission(p.RoleService, "roles:create")).Post("/roles", roleHandler.Create)

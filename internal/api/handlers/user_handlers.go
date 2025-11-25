@@ -78,3 +78,32 @@ func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(res)
 }
+
+func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "user id required"})
+		return
+	}
+
+	var req dto.UpdateStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.service.UpdateStatus(r.Context(), id, req.IsActive); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+}

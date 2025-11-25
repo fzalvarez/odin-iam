@@ -22,3 +22,11 @@ type TenantResponse struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
+type UpdateStatusRequest struct {
+	IsActive bool `json:"is_active"`
+}
+
+func (r *UpdateStatusRequest) Validate() error {
+	return nil
+}
