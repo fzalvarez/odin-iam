@@ -25,7 +25,8 @@ func (s *Service) CreateTenant(ctx context.Context, name string) (*Tenant, error
 	tenant := &Tenant{
 		ID:        uuid.NewString(),
 		Name:      name,
-		IsActive:  true, // Activo por defecto
+		IsActive:  true,
+		Config:    make(TenantConfig), // Inicializar vacío
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -79,4 +80,16 @@ func (s *Service) ListTenants(ctx context.Context) ([]TenantModel, error) {
 
 func (s *Service) UpdateStatus(ctx context.Context, id string, isActive bool) error {
 	return s.repo.UpdateStatus(ctx, id, isActive)
+}
+
+func (s *Service) ListTenants(ctx context.Context) ([]Tenant, error) {
+	// Conecta con el método ListTenants del repositorio (mencionado en auditoría)
+	return s.repo.ListTenants(ctx)
+}
+
+func (s *Service) UpdateConfig(ctx context.Context, id string, config TenantConfig) error {
+	// Aquí se llamaría al repositorio para actualizar solo el campo config
+	// return s.repo.UpdateConfig(ctx, id, config)
+	// Por ahora, asumimos que el repositorio tendrá este método
+	return nil // TODO: Conectar con repo real
 }

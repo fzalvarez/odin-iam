@@ -34,3 +34,14 @@ func (r *UpdateStatusRequest) Validate() error {
 	// Booleano no requiere validación de "required" ya que false es un valor válido.
 	return nil
 }
+
+type ResetPasswordRequest struct {
+	NewPassword string `json:"new_password"`
+}
+
+func (r *ResetPasswordRequest) Validate() error {
+	if len(r.NewPassword) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	return nil
+}

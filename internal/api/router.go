@@ -37,7 +37,8 @@ func NewRouter(p RouterParams) http.Handler {
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(p.AuthService)
-	userHandler := handlers.NewUserHandler(p.UserService)
+	// Inyectamos AuthService también en UserHandler para el reset de password
+	userHandler := handlers.NewUserHandler(p.UserService, p.AuthService)
 	tenantHandler := handlers.NewTenantHandler(p.TenantService)
 	roleHandler := handlers.NewRoleHandler(p.RoleService)
 
@@ -53,13 +54,17 @@ func NewRouter(p RouterParams) http.Handler {
 		// Users
 		// Ejemplo: Solo usuarios con permiso 'users:create' pueden crear usuarios
 		r.With(middlewares.RequirePermission(p.RoleService, "users:create")).Post("/users", userHandler.Create)
+		r.With(middlewares.RequirePermission(p.RoleService, "users:list")).Get("/users", userHandler.List)
 		r.Get("/users/{id}", userHandler.GetByID)
 		r.With(middlewares.RequirePermission(p.RoleService, "users:manage_status")).Put("/users/{id}/status", userHandler.UpdateStatus)
+		r.With(middlewares.RequirePermission(p.RoleService, "users:reset_password")).Post("/users/{id}/password/reset", userHandler.ResetPassword)
 
 		// Tenants
 		r.With(middlewares.RequirePermission(p.RoleService, "tenants:create")).Post("/tenants", tenantHandler.Create)
+		r.With(middlewares.RequirePermission(p.RoleService, "tenants:list")).Get("/tenants", tenantHandler.List)
 		r.Get("/tenants/{id}", tenantHandler.GetByID)
 		r.With(middlewares.RequirePermission(p.RoleService, "tenants:manage_status")).Put("/tenants/{id}/status", tenantHandler.UpdateStatus)
+		r.With(middlewares.RequirePermission(p.RoleService, "tenants:manage_config")).Put("/tenants/{id}/config", tenantHandler.UpdateConfig)
 
 		// Roles (RBAC)
 		r.With(middlewares.RequirePermission(p.RoleService, "roles:create")).Post("/roles", roleHandler.Create)

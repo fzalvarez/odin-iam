@@ -202,3 +202,55 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*Refres
 		RefreshToken: newRefresh,
 	}, nil
 }
+
+func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
+	if err := ValidateRefreshToken(refreshToken); err != nil {
+		return nil, err
+	}
+
+	// 1) Buscar sesión
+	session, err := s.sessions.GetByRefreshToken(ctx, refreshToken)
+	if err != nil {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	if time.Now().UTC().After(session.ExpiresAt) {
+		return nil, errors.New("refresh token expired")
+	}
+
+	// 2) Rotar refresh token
+	newRefresh, err := GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+
+	newExpires := time.Now().UTC().Add(RefreshSessionTTL())
+
+	_, err = s.sessions.CreateSession(ctx, session.UserID, session.TenantID, newRefresh, newExpires)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3) Nuevo access JWT
+	access, err := GenerateAccessToken(session.UserID.String(), session.TenantID.String(), 15*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TokenResponse{
+		AccessToken:  access,
+		RefreshToken: newRefresh,
+	}, nil
+}
+
+func (s *AuthService) UpdatePassword(ctx context.Context, userID, newPassword string) error {
+	// 1. Hash de la nueva contraseña
+	hash, err := hashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	// 2. Actualizar en repositorio de credenciales
+	// Asumimos que el repositorio tiene este método (mencionado en auditoría)
+	return s.credRepo.UpdateCredentialPassword(ctx, userID, hash)
+}

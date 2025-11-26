@@ -45,6 +45,9 @@ func main() {
 	roleService := roles.NewRoleService(roleRepo)
 
 	// 5. Crear router con dependencias
+	// Nota: UserHandler ahora se inicializa dentro de NewRouter o main debe ajustarse si NewRouter no lo hace.
+	// En este caso, NewRouter instancia los handlers internamente usando los servicios pasados en RouterParams.
+	// Solo necesitamos asegurar que RouterParams tenga todo lo necesario.
 	r := api.NewRouter(api.RouterParams{
 		AuthService:   authService,
 		UserService:   userService,

@@ -30,3 +30,14 @@ type UpdateStatusRequest struct {
 func (r *UpdateStatusRequest) Validate() error {
 	return nil
 }
+
+type UpdateTenantConfigRequest struct {
+	Config map[string]interface{} `json:"config"`
+}
+
+func (r *UpdateTenantConfigRequest) Validate() error {
+	if r.Config == nil {
+		return errors.New("config is required")
+	}
+	return nil
+}

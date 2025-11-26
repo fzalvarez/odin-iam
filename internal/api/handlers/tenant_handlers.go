@@ -105,3 +105,65 @@ func (h *TenantHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 }
+
+func (h *TenantHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "tenant id required"})
+		return
+	}
+
+	var req dto.UpdateTenantConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Convertir map[string]interface{} a TenantConfig
+	// En Go, los tipos subyacentes son compatibles si la estructura es idéntica
+	// pero para seguridad de tipos en el servicio, hacemos un cast o conversión si fuera necesario.
+	// Dado que definimos TenantConfig como map[string]interface{}, es directo.
+	if err := h.service.UpdateConfig(r.Context(), id, req.Config); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "config updated"})
+}
+
+func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
+	tenantsList, err := h.service.ListTenants(r.Context())
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	res := make([]dto.TenantResponse, len(tenantsList))
+	for i, t := range tenantsList {
+		res[i] = dto.TenantResponse{
+			ID:        t.ID,
+			Name:      t.Name,
+			CreatedAt: t.CreatedAt,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
+}
