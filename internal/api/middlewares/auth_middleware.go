@@ -44,3 +44,21 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+// GetUserID extracts the user ID from the context
+func GetUserID(ctx context.Context) string {
+	claims, ok := ctx.Value(ClaimsKey).(*auth.Claims)
+	if !ok {
+		return ""
+	}
+	return claims.UserID
+}
+
+// GetTenantID extracts the tenant ID from the context
+func GetTenantID(ctx context.Context) string {
+	claims, ok := ctx.Value(ClaimsKey).(*auth.Claims)
+	if !ok {
+		return ""
+	}
+	return claims.TenantID
+}

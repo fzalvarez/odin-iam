@@ -9,17 +9,18 @@ type Repository interface {
 	CreateRole(ctx context.Context, role *RoleModel) error
 	GetRoleByID(ctx context.Context, id string) (*RoleModel, error)
 	GetRoleByName(ctx context.Context, name string) (*RoleModel, error)
-	
+
 	// Gestión de Permisos
 	AssignPermissionsToRole(ctx context.Context, roleID string, permissionIDs []string) error
 	GetPermissionsByRoleID(ctx context.Context, roleID string) ([]PermissionModel, error)
-	
+
 	// Asignación a Usuarios
 	AssignRoleToUser(ctx context.Context, userID string, roleID string) error
 	GetUserRoles(ctx context.Context, userID string) ([]RoleModel, error)
-	
+
 	// Verificación (Core RBAC)
 	CheckUserPermission(ctx context.Context, userID string, permissionCode string) (bool, error)
+	GetUserPermissions(ctx context.Context, userID string) ([]string, error) // Asegurar que este método existe
 }
 
 // Service define la lógica de negocio.

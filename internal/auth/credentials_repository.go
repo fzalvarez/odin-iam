@@ -1,41 +1,64 @@
 package auth
 
 import (
-    "context"
+	"context"
+	"time"
 
-    db "github.com/fzalvarez/odin-iam/internal/db/gen"
-    "github.com/google/uuid"
+	"github.com/fzalvarez/odin-iam/internal/db/gen"
+	"github.com/google/uuid"
 )
 
 type CredentialsRepository struct {
-    q *db.Queries
+	q *gen.Queries
 }
 
-func NewCredentialsRepository(q *db.Queries) *CredentialsRepository {
-    return &CredentialsRepository{q: q}
+func NewCredentialsRepository(db gen.DBTX) *CredentialsRepository {
+	return &CredentialsRepository{q: gen.New(db)}
 }
 
 // InsertCredential → devuelve un struct (no puntero) del tipo sqlc
-func (r *CredentialsRepository) CreateCredential(ctx context.Context, userID uuid.UUID, passwordHash string) (db.UserCredential, error) {
-    return r.q.InsertCredential(ctx, db.InsertCredentialParams{
-        UserID:       userID,
-        PasswordHash: passwordHash,
-    })
+func (r *CredentialsRepository) CreateCredential(ctx context.Context, userID string, passwordHash string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return err
+	}
+	return r.q.CreateCredential(ctx, gen.CreateCredentialParams{
+		UserID:       uid,
+		PasswordHash: passwordHash,
+		UpdatedAt:    time.Now(),
+	})
 }
 
 // GetCredentialByUserID → si no existe, devolvemos (nil, nil)
-func (r *CredentialsRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*db.UserCredential, error) {
-    cred, err := r.q.GetCredentialByUserID(ctx, userID)
-    if err != nil {
-        return nil, err
-    }
-    return &cred, nil
+func (r *CredentialsRepository) GetCredentialByUserID(ctx context.Context, userID string) (string, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return "", err
+	}
+	cred, err := r.q.GetCredentialByUserID(ctx, uid)
+	if err != nil {
+		return "", err
+	}
+	return cred.PasswordHash, nil
 }
 
 // UpdateCredentialPassword → devuelve un struct real
-func (r *CredentialsRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, newHash string) (db.UserCredential, error) {
-    return r.q.UpdateCredentialPassword(ctx, db.UpdateCredentialPasswordParams{
-        UserID:       userID,
-        PasswordHash: newHash,
-    })
+func (r *CredentialsRepository) UpdateCredentialPassword(ctx context.Context, userID string, newPasswordHash string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return err
+	}
+	return r.q.UpdateCredentialPassword(ctx, gen.UpdateCredentialPasswordParams{
+		UserID:       uid,
+		PasswordHash: newPasswordHash,
+		UpdatedAt:    time.Now(),
+	})
+}
+
+func (r *CredentialsRepository) GetByUserID(ctx context.Context, userID string) (*gen.Credential, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, err
+	}
+	return r.q.GetCredentialByUserID(ctx, uid)
 }

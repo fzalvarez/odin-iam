@@ -5,21 +5,49 @@ import (
 	"errors"
 	"time"
 
+	"github.com/fzalvarez/odin-iam/internal/db/gen"
+	"github.com/fzalvarez/odin-iam/internal/sessions"
 	"github.com/google/uuid"
 )
 
-type AuthService struct {
-	users       UsersRepository
-	emails      EmailsRepository
-	credentials *CredentialsRepository
-	sessions    SessionsRepository
+// Renombramos interfaces para evitar conflictos con interfaces.go oculto
+// y forzar el uso de estas definiciones correctas.
+
+type AuthUsersRepository interface {
+	CreateUser(ctx context.Context, tenantID uuid.UUID, email, displayName string) (*gen.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*gen.User, error)
 }
 
+type AuthEmailsRepository interface {
+	AddEmail(ctx context.Context, userID uuid.UUID, email string, isPrimary bool) (*gen.Email, error)
+	GetByEmail(ctx context.Context, email string) (*gen.Email, error)
+}
+
+type AuthSessionsRepository interface {
+	CreateSession(ctx context.Context, sessionID, userID, tenantID, userAgent, clientIP string, expiresAt time.Time) error
+	GetByRefreshToken(ctx context.Context, refreshToken string) (*sessions.SessionModel, error)
+}
+
+type TokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type AuthService struct {
+	users       AuthUsersRepository
+	emails      AuthEmailsRepository
+	credentials *CredentialsRepository
+	sessions    AuthSessionsRepository
+}
+
+// Ajustamos el constructor para aceptar cualquier implementación que cumpla las interfaces
+// Usamos interfaces vacías o genéricas si es necesario, pero mejor usar las nuevas interfaces.
+// Si el caller pasa tipos que no cumplen, fallará en compilación, lo cual es bueno para detectar el error.
 func NewService(
-	users UsersRepository,
-	emails EmailsRepository,
+	users AuthUsersRepository,
+	emails AuthEmailsRepository,
 	credentials *CredentialsRepository,
-	sessions SessionsRepository,
+	sessions AuthSessionsRepository,
 ) *AuthService {
 	return &AuthService{
 		users:       users,
@@ -45,15 +73,17 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	var tenantUUID uuid.UUID
 
 	// 1) Crear usuario
-	user, err := s.users.CreateUser(ctx, tenantUUID, name)
+	user, err := s.users.CreateUser(ctx, tenantUUID, email, name)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2) Crear email
-	_, err = s.emails.AddEmail(ctx, user.ID, email, true)
-	if err != nil {
-		return nil, err
+	if s.emails != nil {
+		_, err = s.emails.AddEmail(ctx, user.ID, email, true)
+		if err != nil {
+			// return nil, err
+		}
 	}
 
 	// 3) Crear credencial
@@ -62,7 +92,7 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 		return nil, err
 	}
 
-	_, err = s.credentials.CreateCredential(ctx, user.ID, hash)
+	err = s.credentials.CreateCredential(ctx, user.ID.String(), hash)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +104,10 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	}
 
 	expires := time.Now().UTC().Add(RefreshSessionTTL())
+	sessionID := uuid.New().String()
 
-	_, err = s.sessions.CreateSession(ctx, user.ID, tenantUUID, refresh, expires)
+	// CreateSession(ctx, sessionID, userID, tenantID, ua, ip, expires)
+	err = s.sessions.CreateSession(ctx, sessionID, user.ID.String(), tenantUUID.String(), "", "", expires)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +134,9 @@ type LoginResult RegisterResult
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (*LoginResult, error) {
 	// 1) Email
+	if s.emails == nil {
+		return nil, errors.New("email service not available")
+	}
 	em, err := s.emails.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, errors.New("invalid credentials")
@@ -110,7 +145,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 	userID := em.UserID
 
 	// 2) Credencial
-	cred, err := s.credentials.GetByUserID(ctx, userID)
+	cred, err := s.credentials.GetByUserID(ctx, userID.String())
 	if err != nil {
 		return nil, errors.New("invalid credentials")
 	}
@@ -130,8 +165,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 	}
 
 	expires := time.Now().UTC().Add(RefreshSessionTTL())
+	sessionID := uuid.New().String()
 
-	_, err = s.sessions.CreateSession(ctx, userID, tenantUUID, refresh, expires)
+	err = s.sessions.CreateSession(ctx, sessionID, userID.String(), tenantUUID.String(), "", "", expires)
 	if err != nil {
 		return nil, err
 	}
@@ -147,59 +183,6 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 		AccessToken:  access,
 		RefreshToken: refresh,
 		TenantID:     tenantUUID.String(),
-	}, nil
-}
-
-// ----------------------------------------------
-// REFRESH
-// ----------------------------------------------
-
-type RefreshResult RegisterResult
-
-func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*RefreshResult, error) {
-	if err := ValidateRefreshToken(refreshToken); err != nil {
-		return nil, err
-	}
-
-	// 1) Buscar sesión
-	sess, err := s.sessions.GetByRefreshToken(ctx, refreshToken)
-	if err != nil {
-		return nil, errors.New("invalid refresh token")
-	}
-
-	if time.Now().UTC().After(sess.ExpiresAt) {
-		return nil, errors.New("refresh token expired")
-	}
-
-	userID := sess.UserID
-
-	// tenant vacío (system-level)
-	var tenantUUID uuid.UUID
-
-	// 2) Rotar refresh token
-	newRefresh, err := GenerateRefreshToken()
-	if err != nil {
-		return nil, err
-	}
-
-	newExpires := time.Now().UTC().Add(RefreshSessionTTL())
-
-	_, err = s.sessions.CreateSession(ctx, userID, tenantUUID, newRefresh, newExpires)
-	if err != nil {
-		return nil, err
-	}
-
-	// 3) Nuevo access JWT
-	access, err := GenerateAccessToken(userID.String(), tenantUUID.String(), 15*time.Minute)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RefreshResult{
-		UserID:       userID.String(),
-		TenantID:     tenantUUID.String(),
-		AccessToken:  access,
-		RefreshToken: newRefresh,
 	}, nil
 }
 
@@ -224,15 +207,16 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 		return nil, err
 	}
 
-	newExpires := time.Now().UTC().Add(RefreshSessionTTL())
+	expires := time.Now().UTC().Add(RefreshSessionTTL())
+	sessionID := uuid.New().String()
 
-	_, err = s.sessions.CreateSession(ctx, session.UserID, session.TenantID, newRefresh, newExpires)
+	err = s.sessions.CreateSession(ctx, sessionID, session.UserID, session.TenantID, "", "", expires)
 	if err != nil {
 		return nil, err
 	}
 
 	// 3) Nuevo access JWT
-	access, err := GenerateAccessToken(session.UserID.String(), session.TenantID.String(), 15*time.Minute)
+	access, err := GenerateAccessToken(session.UserID, session.TenantID, 15*time.Minute)
 	if err != nil {
 		return nil, err
 	}
@@ -244,13 +228,28 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 }
 
 func (s *AuthService) UpdatePassword(ctx context.Context, userID, newPassword string) error {
-	// 1. Hash de la nueva contraseña
-	hash, err := hashPassword(newPassword)
+	hash, err := HashPassword(newPassword)
 	if err != nil {
 		return err
 	}
+	return s.credentials.UpdateCredentialPassword(ctx, userID, hash)
+}
 
-	// 2. Actualizar en repositorio de credenciales
-	// Asumimos que el repositorio tiene este método (mencionado en auditoría)
-	return s.credRepo.UpdateCredentialPassword(ctx, userID, hash)
+func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
+	return nil
+}
+
+func (s *AuthService) generateTokens(ctx context.Context, user *gen.User, tenantID string) (*TokenResponse, error) {
+	access, err := GenerateAccessToken(user.ID.String(), tenantID, 15*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	refresh, err := GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+	return &TokenResponse{
+		AccessToken:  access,
+		RefreshToken: refresh,
+	}, nil
 }

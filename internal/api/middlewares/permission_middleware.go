@@ -23,7 +23,8 @@ func RequirePermission(service *roles.RoleService, permission string) func(next 
 
 			// Verificar permiso usando el servicio de roles
 			// claims.Subject contiene el UserID (estándar JWT)
-			has, err := service.HasPermission(r.Context(), claims.Subject, permission)
+			// Corregido: HasPermission -> CheckPermission y claims.Subject -> claims.UserID (según auth_middleware)
+			has, err := service.CheckPermission(r.Context(), claims.UserID, permission)
 			if err != nil {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
@@ -34,7 +35,7 @@ func RequirePermission(service *roles.RoleService, permission string) func(next 
 			if !has {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{"error": "insufficient permissions"})
+				json.NewEncoder(w).Encode(map[string]string{"error": "permission denied"})
 				return
 			}
 

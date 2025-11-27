@@ -1,24 +1,12 @@
--- SESSIONS -----------------------------------------------------
-
--- name: InsertSession :one
-INSERT INTO sessions (id, user_id, tenant_id, refresh_token, expires_at)
-VALUES (gen_random_uuid(), $1, $2, $3, $4)
+-- name: CreateSession :one
+INSERT INTO sessions (id, user_id, tenant_id, user_agent, client_ip, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetSessionByID :one
-SELECT *
-FROM sessions
-WHERE id = $1;
-
--- name: GetSessionByRefreshToken :one
-SELECT *
-FROM sessions
-WHERE refresh_token = $1;
+SELECT * FROM sessions
+WHERE id = $1 LIMIT 1;
 
 -- name: DeleteSession :exec
 DELETE FROM sessions
 WHERE id = $1;
-
--- name: DeleteExpiredSessions :exec
-DELETE FROM sessions
-WHERE expires_at <= now();

@@ -2,57 +2,59 @@ package users
 
 import (
 	"context"
-	"database/sql"
+	"time"
 
-	db "github.com/fzalvarez/odin-iam/internal/db/gen"
+	"github.com/fzalvarez/odin-iam/internal/db/gen"
 	"github.com/google/uuid"
 )
 
 type Repository struct {
-	q *db.Queries
+	q *gen.Queries
 }
 
-func NewRepository(q *db.Queries) *Repository {
-	return &Repository{q: q}
+func NewRepository(db gen.DBTX) *Repository {
+	return &Repository{q: gen.New(db)}
 }
 
-// CreateUser crea un usuario con tenant opcional.
-// tenantID == uuid.Nil  → tenant_id NULL
-func (r *Repository) CreateUser(ctx context.Context, tenantID uuid.UUID, displayName string) (db.User, error) {
-	t := uuid.NullUUID{}
-	if tenantID != uuid.Nil {
-		t = uuid.NullUUID{
-			UUID:  tenantID,
-			Valid: true,
-		}
-	}
-
-	return r.q.InsertUser(ctx, db.InsertUserParams{
-		TenantID: t,
-		DisplayName: sql.NullString{
-			String: displayName,
-			Valid:  true,
-		},
+func (r *Repository) CreateUser(ctx context.Context, tenantID uuid.UUID, displayName, email string) (*gen.User, error) {
+	return r.q.CreateUser(ctx, gen.CreateUserParams{
+		ID:          uuid.New(),
+		TenantID:    tenantID,
+		DisplayName: displayName,
+		Email:       email,
+		IsActive:    true,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	})
 }
 
-func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error) {
-	return r.q.GetUserByID(ctx, id)
-}
-
-func (r *Repository) GetUserByEmail(ctx context.Context, email string) (db.User, error) {
-	return r.q.GetUserByEmail(ctx, email)
-}
-
-// ListUsersByTenant recibe uuid.UUID.
-// uuid.Nil → tenant_id NULL
-func (r *Repository) ListUsersByTenant(ctx context.Context, tenantID uuid.UUID) ([]db.User, error) {
-	t := uuid.NullUUID{}
-	if tenantID != uuid.Nil {
-		t = uuid.NullUUID{
-			UUID:  tenantID,
-			Valid: true,
-		}
+func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (*gen.User, error) {
+	user, err := r.q.GetUserByID(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	return r.q.ListUsersByTenant(ctx, t)
+	return &user, nil
+}
+
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*gen.User, error) {
+	user, err := r.q.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *Repository) ListUsersByTenant(ctx context.Context, tenantID uuid.UUID) ([]gen.User, error) {
+	return r.q.ListUsersByTenant(ctx, tenantID)
+}
+
+func (r *Repository) UpdateStatus(ctx context.Context, id string, isActive bool) error {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return r.q.UpdateUserStatus(ctx, gen.UpdateUserStatusParams{
+		ID:       uid,
+		IsActive: isActive,
+	})
 }

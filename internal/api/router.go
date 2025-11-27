@@ -5,12 +5,16 @@ import (
 
 	"github.com/fzalvarez/odin-iam/internal/api/handlers"
 	"github.com/fzalvarez/odin-iam/internal/api/middlewares"
+	"github.com/fzalvarez/odin-iam/internal/apikeys"
 	"github.com/fzalvarez/odin-iam/internal/auth"
 	"github.com/fzalvarez/odin-iam/internal/roles"
 	"github.com/fzalvarez/odin-iam/internal/tenants"
 	"github.com/fzalvarez/odin-iam/internal/users"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger"
+
+	_ "github.com/fzalvarez/odin-iam/docs" // Descomentado para habilitar Swagger
 )
 
 type RouterParams struct {
@@ -18,9 +22,10 @@ type RouterParams struct {
 	UserService   *users.Service
 	TenantService *tenants.Service
 	RoleService   *roles.RoleService
+	APIKeyService *apikeys.Service // Nuevo servicio
 }
 
-func NewRouter(p RouterParams) http.Handler {
+func NewRouter(p RouterParams) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middlewares básicos
@@ -37,15 +42,19 @@ func NewRouter(p RouterParams) http.Handler {
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(p.AuthService)
-	// Inyectamos AuthService también en UserHandler para el reset de password
-	userHandler := handlers.NewUserHandler(p.UserService, p.AuthService)
+	userHandler := handlers.NewUserHandler(p.UserService, p.AuthService, p.RoleService) // Actualizado
 	tenantHandler := handlers.NewTenantHandler(p.TenantService)
 	roleHandler := handlers.NewRoleHandler(p.RoleService)
+	apikeyHandler := handlers.NewAPIKeyHandler(p.APIKeyService) // Nuevo handler
 
 	// Public endpoints
 	r.Post("/auth/register", authHandler.Register)
 	r.Post("/auth/login", authHandler.Login)
 	r.Post("/auth/refresh", authHandler.Refresh)
+	r.Post("/auth/logout", authHandler.Logout) // Nueva ruta
+
+	// Swagger UI
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	// Protected endpoints
 	r.Group(func(r chi.Router) {
@@ -54,6 +63,7 @@ func NewRouter(p RouterParams) http.Handler {
 		// Users
 		// Ejemplo: Solo usuarios con permiso 'users:create' pueden crear usuarios
 		r.With(middlewares.RequirePermission(p.RoleService, "users:create")).Post("/users", userHandler.Create)
+		r.Get("/users/me/permissions", userHandler.GetPermissions) // Nueva ruta
 		r.With(middlewares.RequirePermission(p.RoleService, "users:list")).Get("/users", userHandler.List)
 		r.Get("/users/{id}", userHandler.GetByID)
 		r.With(middlewares.RequirePermission(p.RoleService, "users:manage_status")).Put("/users/{id}/status", userHandler.UpdateStatus)
@@ -70,6 +80,11 @@ func NewRouter(p RouterParams) http.Handler {
 		r.With(middlewares.RequirePermission(p.RoleService, "roles:create")).Post("/roles", roleHandler.Create)
 		r.Get("/roles/{id}", roleHandler.GetByID)
 		r.With(middlewares.RequirePermission(p.RoleService, "roles:assign")).Post("/users/{id}/roles", roleHandler.AssignToUser)
+
+		// API Keys
+		r.With(middlewares.RequirePermission(p.RoleService, "apikeys:create")).Post("/apikeys", apikeyHandler.Create)
+		r.With(middlewares.RequirePermission(p.RoleService, "apikeys:list")).Get("/apikeys", apikeyHandler.List)
+		r.With(middlewares.RequirePermission(p.RoleService, "apikeys:delete")).Delete("/apikeys/{id}", apikeyHandler.Delete)
 	})
 
 	return r

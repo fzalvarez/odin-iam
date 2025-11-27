@@ -1,44 +1,38 @@
--- ROLES --------------------------------------------------------
-
--- name: InsertRole :one
-INSERT INTO roles (id, tenant_id, name, description)
-VALUES (gen_random_uuid(), $1, $2, $3)
+-- name: CreateRole :one
+INSERT INTO roles (id, name, description, tenant_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetRoleByID :one
-SELECT *
-FROM roles
-WHERE id = $1;
+SELECT * FROM roles
+WHERE id = $1 LIMIT 1;
 
--- name: ListRolesByTenant :many
-SELECT *
-FROM roles
-WHERE tenant_id = $1
-ORDER BY created_at DESC;
+-- name: AssignRoleToUser :exec
+INSERT INTO user_roles (user_id, role_id, assigned_at)
+VALUES ($1, $2, NOW());
 
+-- name: GetRolesByUser :many
+SELECT r.* FROM roles r
+JOIN user_roles ur ON r.id = ur.role_id
+WHERE ur.user_id = $1;
 
--- PERMISSIONS --------------------------------------------------
-
--- name: InsertPermission :one
-INSERT INTO permissions (id, name, description)
-VALUES (gen_random_uuid(), $1, $2)
+-- name: CreatePermission :one
+INSERT INTO permissions (id, code, description, created_at)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
--- name: ListPermissions :many
-SELECT *
-FROM permissions
-ORDER BY name ASC;
+-- name: AssignPermissionToRole :exec
+INSERT INTO role_permissions (role_id, permission_id, assigned_at)
+VALUES ($1, $2, NOW());
 
-
--- ROLE PERMISSIONS --------------------------------------------
-
--- name: AssignPermissionToRole :one
-INSERT INTO role_permissions (id, role_id, permission_id)
-VALUES (gen_random_uuid(), $1, $2)
-RETURNING *;
-
--- name: ListPermissionsForRole :many
-SELECT p.*
-FROM permissions p
-JOIN role_permissions rp ON rp.permission_id = p.id
+-- name: GetPermissionsByRoleID :many
+SELECT p.* FROM permissions p
+JOIN role_permissions rp ON p.id = rp.permission_id
 WHERE rp.role_id = $1;
+
+-- name: GetPermissionsByUser :many
+SELECT DISTINCT p.code
+FROM permissions p
+JOIN role_permissions rp ON p.id = rp.permission_id
+JOIN user_roles ur ON rp.role_id = ur.role_id
+WHERE ur.user_id = $1;

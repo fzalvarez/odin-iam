@@ -1,31 +1,22 @@
--- TENANTS ------------------------------------------------------
-
--- name: InsertTenant :one
-INSERT INTO tenants (id, name)
-VALUES (gen_random_uuid(), $1)
+-- name: CreateTenant :one
+INSERT INTO tenants (id, name, is_active, config, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetTenantByID :one
-SELECT *
-FROM tenants
-WHERE id = $1;
+SELECT * FROM tenants
+WHERE id = $1 LIMIT 1;
 
 -- name: ListTenants :many
-SELECT *
-FROM tenants
+SELECT * FROM tenants
 ORDER BY created_at DESC;
 
+-- name: UpdateTenantStatus :exec
+UPDATE tenants
+SET is_active = $2, updated_at = NOW()
+WHERE id = $1;
 
--- TENANT USERS -------------------------------------------------
-
--- name: AddUserToTenant :one
-INSERT INTO tenant_users (id, tenant_id, user_id)
-VALUES (gen_random_uuid(), $1, $2)
-RETURNING *;
-
--- name: ListUsersInTenant :many
-SELECT u.*
-FROM users u
-JOIN tenant_users tu ON tu.user_id = u.id
-WHERE tu.tenant_id = $1
-ORDER BY u.created_at DESC;
+-- name: UpdateTenantConfig :exec
+UPDATE tenants
+SET config = $2, updated_at = NOW()
+WHERE id = $1;

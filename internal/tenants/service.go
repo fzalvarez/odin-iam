@@ -3,7 +3,6 @@ package tenants
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,26 +16,22 @@ func NewService(repo *Repository) *Service {
 }
 
 // CreateTenant creates a new tenant
-func (s *Service) CreateTenant(ctx context.Context, name string) (*Tenant, error) {
+func (s *Service) CreateTenant(ctx context.Context, name string) (*TenantModel, error) {
 	if name == "" {
 		return nil, errors.New("tenant name cannot be empty")
 	}
 
-	tenant := &Tenant{
-		ID:        uuid.NewString(),
-		Name:      name,
-		IsActive:  true,
-		Config:    make(TenantConfig), // Inicializar vacío
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	err := s.repo.CreateTenant(ctx, tenant)
+	// El repositorio se encarga de crear el ID y persistir
+	tenant, err := s.repo.CreateTenant(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 
-	return tenant, nil
+	return &TenantModel{
+		ID:        tenant.ID.String(),
+		Name:      tenant.Name,
+		CreatedAt: tenant.CreatedAt,
+	}, nil
 }
 
 // GetTenantByID retrieves a tenant by UUID
@@ -82,14 +77,7 @@ func (s *Service) UpdateStatus(ctx context.Context, id string, isActive bool) er
 	return s.repo.UpdateStatus(ctx, id, isActive)
 }
 
-func (s *Service) ListTenants(ctx context.Context) ([]Tenant, error) {
-	// Conecta con el método ListTenants del repositorio (mencionado en auditoría)
-	return s.repo.ListTenants(ctx)
-}
-
-func (s *Service) UpdateConfig(ctx context.Context, id string, config TenantConfig) error {
-	// Aquí se llamaría al repositorio para actualizar solo el campo config
-	// return s.repo.UpdateConfig(ctx, id, config)
-	// Por ahora, asumimos que el repositorio tendrá este método
-	return nil // TODO: Conectar con repo real
+// Eliminar función duplicada ListTenants y corregir UpdateConfig
+func (s *Service) UpdateConfig(ctx context.Context, id string, config map[string]interface{}) error {
+	return s.repo.UpdateConfig(ctx, id, config)
 }

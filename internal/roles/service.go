@@ -2,11 +2,9 @@ package roles
 
 import (
 	"context"
-	"errors"
-	"time"
-
-	"github.com/google/uuid"
 )
+
+// Eliminada interfaz Repository duplicada. Se asume que está en interfaces.go.
 
 type RoleService struct {
 	repo Repository
@@ -16,62 +14,38 @@ func NewRoleService(repo Repository) *RoleService {
 	return &RoleService{repo: repo}
 }
 
-func (s *RoleService) CreateRole(ctx context.Context, name, description, tenantID string, permissionIDs []string) (*RoleWithPermissions, error) {
-	if name == "" {
-		return nil, errors.New("role name is required")
-	}
-
+func (s *RoleService) CreateRole(ctx context.Context, name, description, tenantID string) (*RoleModel, error) {
 	role := &RoleModel{
-		ID:          uuid.NewString(),
 		Name:        name,
 		Description: description,
 		TenantID:    tenantID,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
 	}
-
 	if err := s.repo.CreateRole(ctx, role); err != nil {
 		return nil, err
 	}
-
-	if len(permissionIDs) > 0 {
-		if err := s.repo.AssignPermissionsToRole(ctx, role.ID, permissionIDs); err != nil {
-			return nil, err
-		}
-	}
-
-	perms, err := s.repo.GetPermissionsByRoleID(ctx, role.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RoleWithPermissions{
-		Role:        *role,
-		Permissions: perms,
-	}, nil
+	return role, nil
 }
 
-func (s *RoleService) GetRole(ctx context.Context, id string) (*RoleWithPermissions, error) {
-	role, err := s.repo.GetRoleByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	perms, err := s.repo.GetPermissionsByRoleID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RoleWithPermissions{
-		Role:        *role,
-		Permissions: perms,
-	}, nil
+func (s *RoleService) GetRoleByID(ctx context.Context, id string) (*RoleModel, error) {
+	return s.repo.GetRoleByID(ctx, id)
 }
 
-func (s *RoleService) AssignRoleToUser(ctx context.Context, userID, roleID string) error {
+func (s *RoleService) AssignPermissions(ctx context.Context, roleID string, permissionIDs []string) error {
+	return s.repo.AssignPermissionsToRole(ctx, roleID, permissionIDs)
+}
+
+func (s *RoleService) GetPermissions(ctx context.Context, roleID string) ([]PermissionModel, error) {
+	return s.repo.GetPermissionsByRoleID(ctx, roleID)
+}
+
+func (s *RoleService) AssignRoleToUser(ctx context.Context, userID string, roleID string) error {
 	return s.repo.AssignRoleToUser(ctx, userID, roleID)
 }
 
-func (s *RoleService) HasPermission(ctx context.Context, userID, permissionCode string) (bool, error) {
-	return s.repo.CheckUserPermission(ctx, userID, permissionCode)
+func (s *RoleService) GetUserPermissions(ctx context.Context, userID string) ([]string, error) {
+	return s.repo.GetUserPermissions(ctx, userID)
+}
+
+func (s *RoleService) CheckPermission(ctx context.Context, userID string, permission string) (bool, error) {
+	return s.repo.CheckUserPermission(ctx, userID, permission)
 }

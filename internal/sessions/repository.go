@@ -2,54 +2,78 @@ package sessions
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
-	db "github.com/fzalvarez/odin-iam/internal/db/gen"
+	"github.com/fzalvarez/odin-iam/internal/db/gen"
 	"github.com/google/uuid"
 )
 
 type Repository struct {
-	q *db.Queries
+	q *gen.Queries
 }
 
-func NewRepository(q *db.Queries) *Repository {
-	return &Repository{q: q}
+func NewRepository(db gen.DBTX) *Repository {
+	return &Repository{q: gen.New(db)}
 }
 
-// CreateSession siempre recibe tenantID como uuid.UUID.
-// Si tenantID es uuid.Nil → se guarda NULL en la BD.
-func (r *Repository) CreateSession(
-	ctx context.Context,
-	userID uuid.UUID,
-	tenantID uuid.UUID,
-	refresh string,
-	expiresAt time.Time,
-) (db.Session, error) {
-
-	var t uuid.NullUUID
-	if tenantID != uuid.Nil {
-		t = uuid.NullUUID{
-			UUID:  tenantID,
-			Valid: true,
-		}
+func (r *Repository) CreateSession(ctx context.Context, id, userID, tenantID, userAgent, clientIP string, expiresAt time.Time) error {
+	sid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return err
+	}
+	tid, err := uuid.Parse(tenantID)
+	if err != nil {
+		return err
 	}
 
-	return r.q.InsertSession(ctx, db.InsertSessionParams{
-		UserID:       userID,
-		TenantID:     t,
-		RefreshToken: refresh,
-		ExpiresAt:    expiresAt,
+	_, err = r.q.CreateSession(ctx, gen.CreateSessionParams{
+		ID:        sid,
+		UserID:    uid,
+		TenantID:  tid,
+		UserAgent: sqlNullString(userAgent),
+		ClientIP:  sqlNullString(clientIP),
+		ExpiresAt: expiresAt,
+		CreatedAt: time.Now(),
 	})
+	return err
 }
 
-func (r *Repository) GetByRefreshToken(ctx context.Context, token string) (db.Session, error) {
-	return r.q.GetSessionByRefreshToken(ctx, token)
+func (r *Repository) GetSessionByID(ctx context.Context, id string) (*SessionModel, error) {
+	sid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	sess, err := r.q.GetSessionByID(ctx, sid)
+	if err != nil {
+		return nil, err
+	}
+	return &SessionModel{
+		ID:        sess.ID.String(),
+		UserID:    sess.UserID.String(),
+		TenantID:  sess.TenantID.String(),
+		UserAgent: sess.UserAgent.String,
+		ClientIP:  sess.ClientIP.String,
+		ExpiresAt: sess.ExpiresAt,
+		CreatedAt: sess.CreatedAt,
+	}, nil
 }
 
-func (r *Repository) DeleteSession(ctx context.Context, id uuid.UUID) error {
-	return r.q.DeleteSession(ctx, id)
+func (r *Repository) DeleteSession(ctx context.Context, id string) error {
+	sid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return r.q.DeleteSession(ctx, sid)
 }
 
-func (r *Repository) DeleteExpired(ctx context.Context) error {
-	return r.q.DeleteExpiredSessions(ctx)
+func sqlNullString(s string) sql.NullString {
+	return sql.NullString{
+		String: s,
+		Valid:  s != "",
+	}
 }
