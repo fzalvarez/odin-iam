@@ -5,7 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fzalvarez/odin-iam/internal/db/gen"
+	// Usamos alias para evitar problemas si el paquete se llama 'db' o 'gen'
+	dbgen "github.com/fzalvarez/odin-iam/internal/db/gen"
 	"github.com/fzalvarez/odin-iam/internal/sessions"
 	"github.com/google/uuid"
 )
@@ -14,17 +15,21 @@ import (
 // y forzar el uso de estas definiciones correctas.
 
 type AuthUsersRepository interface {
-	CreateUser(ctx context.Context, tenantID uuid.UUID, email, displayName string) (*gen.User, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*gen.User, error)
+	// Corregido orden: displayName, email (coincide con users/repository.go)
+	CreateUser(ctx context.Context, tenantID uuid.UUID, displayName, email string) (*dbgen.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*dbgen.User, error)
 }
 
 type AuthEmailsRepository interface {
-	AddEmail(ctx context.Context, userID uuid.UUID, email string, isPrimary bool) (*gen.Email, error)
-	GetByEmail(ctx context.Context, email string) (*gen.Email, error)
+	GetUserByEmail(ctx context.Context, email string) (*dbgen.User, error)
 }
 
 type AuthSessionsRepository interface {
-	CreateSession(ctx context.Context, sessionID, userID, tenantID, userAgent, clientIP string, expiresAt time.Time) error
+	// Ajustamos firma para incluir refreshToken si es necesario, o mantenemos la que usa el servicio.
+	// El servicio llama: CreateSession(ctx, sessionID, userID, tenantID, "", "", expires)
+	// Pero el repositorio necesita guardar el refreshToken.
+	// Vamos a añadir refreshToken a la firma para ser explícitos.
+	CreateSession(ctx context.Context, sessionID, userID, tenantID, refreshToken, userAgent, clientIP string, expiresAt time.Time) error
 	GetByRefreshToken(ctx context.Context, refreshToken string) (*sessions.SessionModel, error)
 }
 
@@ -73,18 +78,17 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	var tenantUUID uuid.UUID
 
 	// 1) Crear usuario
-	user, err := s.users.CreateUser(ctx, tenantUUID, email, name)
+	// Corregido orden argumentos: displayName, email
+	user, err := s.users.CreateUser(ctx, tenantUUID, name, email)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2) Crear email
-	if s.emails != nil {
-		_, err = s.emails.AddEmail(ctx, user.ID, email, true)
-		if err != nil {
-			// return nil, err
-		}
-	}
+	// userRepo (inyectado como s.emails) ya maneja emails, pero si CreateUser no lo hizo, lo aseguramos.
+	// Si CreateUser ya insertó el email, AddEmail podría fallar o ser redundante.
+	// Asumiremos que CreateUser maneja el email principal.
+	// _, err = s.emails.AddEmail(ctx, user.ID, email, true)
 
 	// 3) Crear credencial
 	hash, err := HashPassword(password)
@@ -106,8 +110,8 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	expires := time.Now().UTC().Add(RefreshSessionTTL())
 	sessionID := uuid.New().String()
 
-	// CreateSession(ctx, sessionID, userID, tenantID, ua, ip, expires)
-	err = s.sessions.CreateSession(ctx, sessionID, user.ID.String(), tenantUUID.String(), "", "", expires)
+	// CreateSession con refreshToken
+	err = s.sessions.CreateSession(ctx, sessionID, user.ID.String(), tenantUUID.String(), refresh, "", "", expires)
 	if err != nil {
 		return nil, err
 	}
@@ -133,19 +137,17 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 type LoginResult RegisterResult
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (*LoginResult, error) {
-	// 1) Email
-	if s.emails == nil {
-		return nil, errors.New("email service not available")
-	}
-	em, err := s.emails.GetByEmail(ctx, email)
+	// 1) Buscar usuario por email
+	user, err := s.emails.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, errors.New("invalid credentials")
 	}
 
-	userID := em.UserID
+	userID := user.ID
 
 	// 2) Credencial
 	cred, err := s.credentials.GetByUserID(ctx, userID.String())
+	// fmt.Println("cred", cred)
 	if err != nil {
 		return nil, errors.New("invalid credentials")
 	}
@@ -167,7 +169,8 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 	expires := time.Now().UTC().Add(RefreshSessionTTL())
 	sessionID := uuid.New().String()
 
-	err = s.sessions.CreateSession(ctx, sessionID, userID.String(), tenantUUID.String(), "", "", expires)
+	// CreateSession con refreshToken
+	err = s.sessions.CreateSession(ctx, sessionID, userID.String(), tenantUUID.String(), refresh, "", "", expires)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +213,8 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 	expires := time.Now().UTC().Add(RefreshSessionTTL())
 	sessionID := uuid.New().String()
 
-	err = s.sessions.CreateSession(ctx, sessionID, session.UserID, session.TenantID, "", "", expires)
+	// CreateSession con refreshToken
+	err = s.sessions.CreateSession(ctx, sessionID, session.UserID, session.TenantID, newRefresh, "", "", expires)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +243,7 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 	return nil
 }
 
-func (s *AuthService) generateTokens(ctx context.Context, user *gen.User, tenantID string) (*TokenResponse, error) {
+func (s *AuthService) generateTokens(ctx context.Context, user *dbgen.User, tenantID string) (*TokenResponse, error) {
 	access, err := GenerateAccessToken(user.ID.String(), tenantID, 15*time.Minute)
 	if err != nil {
 		return nil, err
@@ -252,4 +256,8 @@ func (s *AuthService) generateTokens(ctx context.Context, user *gen.User, tenant
 		AccessToken:  access,
 		RefreshToken: refresh,
 	}, nil
+}
+
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenResponse, error) {
+	return s.RefreshToken(ctx, refreshToken)
 }

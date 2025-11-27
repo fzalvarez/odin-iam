@@ -4,18 +4,19 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/joho/godotenv"
+
 	"github.com/fzalvarez/odin-iam/internal/api"
 	"github.com/fzalvarez/odin-iam/internal/apikeys"
 	"github.com/fzalvarez/odin-iam/internal/auth"
 	dbconn "github.com/fzalvarez/odin-iam/internal/db"
-	dbgen "github.com/fzalvarez/odin-iam/internal/db/gen"
 
-	// "github.com/fzalvarez/odin-iam/internal/emails" // Comentado si no existe el paquete
 	"github.com/fzalvarez/odin-iam/internal/roles"
 	"github.com/fzalvarez/odin-iam/internal/sessions"
 	"github.com/fzalvarez/odin-iam/internal/tenants"
 	"github.com/fzalvarez/odin-iam/internal/users"
-	// _ "github.com/fzalvarez/odin-iam/docs" // Comentado hasta resolver dependencias
+
+	_ "github.com/fzalvarez/odin-iam/docs"
 )
 
 // @title           Odin IAM API
@@ -36,6 +37,11 @@ import (
 // @in header
 // @name Authorization
 func main() {
+	// Cargar variables de entorno desde .env
+	if err := godotenv.Load(); err != nil {
+		log.Println("⚠️  No .env file found, using system environment variables")
+	}
+
 	// 1. Conectar a la base de datos
 	conn, err := dbconn.Connect()
 	if err != nil {
@@ -43,28 +49,20 @@ func main() {
 	}
 	defer conn.Close()
 
-	// 2. Instanciar el generador de queries sqlc
-	q := dbgen.New(conn)
-
 	// 3. Inicializar repositorios
 	// Nota: db/gen debe haber sido regenerado con sqlc antes de compilar
-	credRepo := auth.NewCredentialsRepository(q)
-	sessionRepo := sessions.NewRepository(q)
-	tenantRepo := tenants.NewRepository(q)
-	userRepo := users.NewRepository(q)
-	roleRepo := roles.NewRepository(q)
-	apikeyRepo := apikeys.NewRepository(q)
-	// emailRepo := emails.NewRepository(q) // Comentado
+	credRepo := auth.NewCredentialsRepository(conn)
+	sessionRepo := sessions.NewRepository(conn)
+	tenantRepo := tenants.NewRepository(conn)
+	userRepo := users.NewRepository(conn)
+	roleRepo := roles.NewRepository(conn)
+	apikeyRepo := apikeys.NewRepository(conn)
 
 	// 4. Crear servicios
-	// Asumimos que userRepo implementa lo necesario para emails o pasamos nil temporalmente
-	// Si auth.NewService requiere 4 argumentos, debemos pasar algo.
-	// Si no tenemos emailRepo, pasamos userRepo si implementa la interfaz, o nil y corregimos el servicio.
-	// Por ahora, pasamos userRepo asumiendo que maneja emails también (común en repositorios unificados)
-	// OJO: Esto requiere que userRepo implemente EmailsRepository.
+	// userRepo implementa AuthEmailsRepository (AddEmail, GetByEmail)
 	authService := auth.NewService(
 		userRepo,
-		nil, // emailRepo temporalmente nil o userRepo si implementa
+		userRepo, // Usamos userRepo para emails
 		credRepo,
 		sessionRepo,
 	)

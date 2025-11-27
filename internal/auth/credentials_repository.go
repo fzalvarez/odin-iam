@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/fzalvarez/odin-iam/internal/db/gen"
+	gen "github.com/fzalvarez/odin-iam/internal/db/gen"
 	"github.com/google/uuid"
 )
 
@@ -51,7 +51,6 @@ func (r *CredentialsRepository) UpdateCredentialPassword(ctx context.Context, us
 	return r.q.UpdateCredentialPassword(ctx, gen.UpdateCredentialPasswordParams{
 		UserID:       uid,
 		PasswordHash: newPasswordHash,
-		UpdatedAt:    time.Now(),
 	})
 }
 
@@ -60,5 +59,9 @@ func (r *CredentialsRepository) GetByUserID(ctx context.Context, userID string) 
 	if err != nil {
 		return nil, err
 	}
-	return r.q.GetCredentialByUserID(ctx, uid)
+	cred, err := r.q.GetCredentialByUserID(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &cred, nil
 }

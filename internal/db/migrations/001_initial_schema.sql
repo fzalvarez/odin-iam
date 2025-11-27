@@ -27,6 +27,7 @@ CREATE TABLE sessions (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id),
     tenant_id UUID NOT NULL REFERENCES tenants(id),
+    refresh_token TEXT NOT NULL UNIQUE,
     user_agent TEXT,
     client_ip TEXT,
     expires_at TIMESTAMPTZ NOT NULL,

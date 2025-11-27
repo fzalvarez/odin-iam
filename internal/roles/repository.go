@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/fzalvarez/odin-iam/internal/db/gen"
+	gen "github.com/fzalvarez/odin-iam/internal/db/gen"
 	"github.com/google/uuid"
 )
 

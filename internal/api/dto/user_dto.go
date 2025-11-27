@@ -8,12 +8,16 @@ import (
 
 type CreateUserRequest struct {
 	TenantID    string `json:"tenant_id"`
+	Email       string `json:"email"`
 	DisplayName string `json:"display_name"`
 }
 
 func (r *CreateUserRequest) Validate() error {
 	if strings.TrimSpace(r.DisplayName) == "" {
 		return errors.New("display_name is required")
+	}
+	if strings.TrimSpace(r.Email) == "" {
+		return errors.New("email is required")
 	}
 	// TenantID es opcional en el sistema (uuid.Nil), por lo que permitimos string vacío.
 	return nil

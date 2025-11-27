@@ -2,8 +2,7 @@ version: "2"
 
 sql:
   - schema:
-      - "internal/db/migrations/001_init.sql"
-      - "internal/db/migrations/002_user_credentials.sql"
+      - "internal/db/migrations/001_initial_schema.sql"
     queries: "internal/db/queries"
     engine: "postgresql"
     gen:

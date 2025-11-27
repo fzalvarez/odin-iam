@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger"
 
-	_ "github.com/fzalvarez/odin-iam/docs" // Descomentado para habilitar Swagger
+	_ "github.com/fzalvarez/odin-iam/docs"
 )
 
 type RouterParams struct {

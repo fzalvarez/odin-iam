@@ -51,7 +51,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.service.CreateUser(r.Context(), req.TenantID, req.DisplayName)
+	user, err := h.service.CreateUser(r.Context(), req.TenantID, req.Email, req.DisplayName)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)

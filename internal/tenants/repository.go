@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/fzalvarez/odin-iam/internal/db/gen"
+	gen "github.com/fzalvarez/odin-iam/internal/db/gen"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +22,7 @@ func (r *Repository) CreateTenant(ctx context.Context, name string) (*gen.Tenant
 	// Config vacío por defecto
 	emptyConfig, _ := json.Marshal(map[string]interface{}{})
 
-	return r.q.CreateTenant(ctx, gen.CreateTenantParams{
+	tenant, err := r.q.CreateTenant(ctx, gen.CreateTenantParams{
 		ID:        uuid.New(),
 		Name:      name,
 		IsActive:  true,
@@ -30,6 +30,10 @@ func (r *Repository) CreateTenant(ctx context.Context, name string) (*gen.Tenant
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &tenant, nil
 }
 
 // Get tenant by ID
