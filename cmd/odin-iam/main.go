@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/fzalvarez/odin-iam/internal/api"
 	"github.com/fzalvarez/odin-iam/internal/apikeys"
 	"github.com/fzalvarez/odin-iam/internal/auth"
+	"github.com/fzalvarez/odin-iam/internal/bootstrap"
 	dbconn "github.com/fzalvarez/odin-iam/internal/db"
 
 	"github.com/fzalvarez/odin-iam/internal/roles"
@@ -48,6 +50,11 @@ func main() {
 		log.Fatalf("❌ failed to connect database: %v", err)
 	}
 	defer conn.Close()
+
+	// 2. Inicializar sistema (crear admin inicial si es necesario)
+	if err := bootstrap.InitializeSystem(context.Background(), conn); err != nil {
+		log.Printf("⚠️  Error al inicializar sistema: %v", err)
+	}
 
 	// 3. Inicializar repositorios
 	// Nota: db/gen debe haber sido regenerado con sqlc antes de compilar
