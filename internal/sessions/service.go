@@ -30,23 +30,21 @@ func (s *Service) CreateSession(
 		return nil, errors.New("invalid user id")
 	}
 
-	// Parse tenantID (or set NULL)
+	// Parse tenantID (or set to uuid.Nil if empty)
 	var tid uuid.UUID
 	if tenantID != "" {
 		tid, err = uuid.Parse(tenantID)
 		if err != nil {
 			return nil, errors.New("invalid tenant id")
 		}
-	} else {
-		tid = uuid.Nil
 	}
 
 	// Generate Session ID
 	sessionID := uuid.New()
 	expires := time.Now().UTC().Add(ttl)
 
-	// Repository call - Pasar refreshToken
-	err = s.repo.CreateSession(ctx, sessionID.String(), uid.String(), tid.String(), refreshToken, "", "", expires)
+	// Repository call - Pasar uuid.UUID directamente
+	err = s.repo.CreateSession(ctx, sessionID, uid, tid, refreshToken, "", "", expires)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +72,5 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID string) error {
 }
 
 func (s *Service) CleanupExpired(ctx context.Context) error {
-	// TODO: Implementar query DeleteExpiredSessions
-	return nil
+	return s.repo.DeleteExpiredSessions(ctx)
 }

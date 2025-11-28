@@ -25,11 +25,7 @@ type AuthEmailsRepository interface {
 }
 
 type AuthSessionsRepository interface {
-	// Ajustamos firma para incluir refreshToken si es necesario, o mantenemos la que usa el servicio.
-	// El servicio llama: CreateSession(ctx, sessionID, userID, tenantID, "", "", expires)
-	// Pero el repositorio necesita guardar el refreshToken.
-	// Vamos a añadir refreshToken a la firma para ser explícitos.
-	CreateSession(ctx context.Context, sessionID, userID, tenantID, refreshToken, userAgent, clientIP string, expiresAt time.Time) error
+	CreateSession(ctx context.Context, sessionID, userID, tenantID uuid.UUID, refreshToken, userAgent, clientIP string, expiresAt time.Time) error
 	GetByRefreshToken(ctx context.Context, refreshToken string) (*sessions.SessionModel, error)
 }
 
@@ -78,19 +74,12 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	var tenantUUID uuid.UUID
 
 	// 1) Crear usuario
-	// Corregido orden argumentos: displayName, email
 	user, err := s.users.CreateUser(ctx, tenantUUID, name, email)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2) Crear email
-	// userRepo (inyectado como s.emails) ya maneja emails, pero si CreateUser no lo hizo, lo aseguramos.
-	// Si CreateUser ya insertó el email, AddEmail podría fallar o ser redundante.
-	// Asumiremos que CreateUser maneja el email principal.
-	// _, err = s.emails.AddEmail(ctx, user.ID, email, true)
-
-	// 3) Crear credencial
+	// 2) Crear credencial
 	hash, err := HashPassword(password)
 	if err != nil {
 		return nil, err
@@ -101,22 +90,21 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 		return nil, err
 	}
 
-	// 4) Crear sesión (refresh token)
+	// 3) Crear sesión (refresh token)
 	refresh, err := GenerateRefreshToken()
 	if err != nil {
 		return nil, err
 	}
 
 	expires := time.Now().UTC().Add(RefreshSessionTTL())
-	sessionID := uuid.New().String()
+	sessionID := uuid.New()
 
-	// CreateSession con refreshToken
-	err = s.sessions.CreateSession(ctx, sessionID, user.ID.String(), tenantUUID.String(), refresh, "", "", expires)
+	err = s.sessions.CreateSession(ctx, sessionID, user.ID, tenantUUID, refresh, "", "", expires)
 	if err != nil {
 		return nil, err
 	}
 
-	// 5) JWT
+	// 4) JWT
 	access, err := GenerateAccessToken(user.ID.String(), tenantUUID.String(), 15*time.Minute)
 	if err != nil {
 		return nil, err
@@ -147,7 +135,6 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 
 	// 2) Credencial
 	cred, err := s.credentials.GetByUserID(ctx, userID.String())
-	// fmt.Println("cred", cred)
 	if err != nil {
 		return nil, errors.New("invalid credentials")
 	}
@@ -167,10 +154,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 	}
 
 	expires := time.Now().UTC().Add(RefreshSessionTTL())
-	sessionID := uuid.New().String()
+	sessionID := uuid.New()
 
-	// CreateSession con refreshToken
-	err = s.sessions.CreateSession(ctx, sessionID, userID.String(), tenantUUID.String(), refresh, "", "", expires)
+	err = s.sessions.CreateSession(ctx, sessionID, userID, tenantUUID, refresh, "", "", expires)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +175,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 	}, nil
 }
 
-func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenResponse, error) {
 	if err := ValidateRefreshToken(refreshToken); err != nil {
 		return nil, err
 	}
@@ -211,10 +197,19 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 	}
 
 	expires := time.Now().UTC().Add(RefreshSessionTTL())
-	sessionID := uuid.New().String()
+	sessionID := uuid.New()
 
-	// CreateSession con refreshToken
-	err = s.sessions.CreateSession(ctx, sessionID, session.UserID, session.TenantID, newRefresh, "", "", expires)
+	// Parsear UUIDs de string a uuid.UUID
+	userID, err := uuid.Parse(session.UserID)
+	if err != nil {
+		return nil, err
+	}
+	tenantID, err := uuid.Parse(session.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.sessions.CreateSession(ctx, sessionID, userID, tenantID, newRefresh, "", "", expires)
 	if err != nil {
 		return nil, err
 	}
@@ -243,21 +238,8 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 	return nil
 }
 
-func (s *AuthService) generateTokens(ctx context.Context, user *dbgen.User, tenantID string) (*TokenResponse, error) {
-	access, err := GenerateAccessToken(user.ID.String(), tenantID, 15*time.Minute)
-	if err != nil {
-		return nil, err
-	}
-	refresh, err := GenerateRefreshToken()
-	if err != nil {
-		return nil, err
-	}
-	return &TokenResponse{
-		AccessToken:  access,
-		RefreshToken: refresh,
-	}, nil
-}
-
-func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenResponse, error) {
-	return s.RefreshToken(ctx, refreshToken)
+// RefreshToken es un alias de Refresh para compatibilidad hacia atrás
+// Deprecated: Usar Refresh en su lugar
+func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
+	return s.Refresh(ctx, refreshToken)
 }

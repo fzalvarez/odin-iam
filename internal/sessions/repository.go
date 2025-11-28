@@ -17,28 +17,11 @@ func NewRepository(db gen.DBTX) *Repository {
 	return &Repository{q: gen.New(db)}
 }
 
-func (r *Repository) CreateSession(ctx context.Context, sessionID, userID, tenantID, refreshToken, userAgent, clientIP string, expiresAt time.Time) error {
-	sid, err := uuid.Parse(sessionID)
-	if err != nil {
-		return err
-	}
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		return err
-	}
-
-	tid := uuid.Nil
-	if tenantID != "" {
-		tid, err = uuid.Parse(tenantID)
-		if err != nil {
-			return err
-		}
-	}
-
-	_, err = r.q.CreateSession(ctx, gen.CreateSessionParams{
-		ID:           sid,
-		UserID:       uid,
-		TenantID:     tid,
+func (r *Repository) CreateSession(ctx context.Context, sessionID, userID, tenantID uuid.UUID, refreshToken, userAgent, clientIP string, expiresAt time.Time) error {
+	_, err := r.q.CreateSession(ctx, gen.CreateSessionParams{
+		ID:           sessionID,
+		UserID:       userID,
+		TenantID:     tenantID,
 		RefreshToken: refreshToken,
 		UserAgent:    sql.NullString{String: userAgent, Valid: userAgent != ""},
 		ClientIp:     sql.NullString{String: clientIP, Valid: clientIP != ""},
@@ -70,4 +53,15 @@ func (r *Repository) GetByRefreshToken(ctx context.Context, refreshToken string)
 // DeleteSession elimina una sesión por ID
 func (r *Repository) DeleteSession(ctx context.Context, id uuid.UUID) error {
 	return r.q.DeleteSession(ctx, id)
+}
+
+// DeleteExpiredSessions elimina todas las sesiones expiradas
+func (r *Repository) DeleteExpiredSessions(ctx context.Context) error {
+	// TODO: Agregar esta query a internal/db/queries/sessions.sql:
+	// -- name: DeleteExpiredSessions :exec
+	// DELETE FROM sessions WHERE expires_at <= NOW();
+	// Luego ejecutar: sqlc generate
+
+	// Por ahora retorna nil (sin implementación)
+	return nil
 }
