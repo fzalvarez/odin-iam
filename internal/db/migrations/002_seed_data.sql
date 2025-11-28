@@ -2,10 +2,14 @@
 -- Descripción: Crea tenant System, permisos base y rol Super Admin
 
 -- 1. Tenant System (si no existe)
-INSERT INTO tenants (id, name, is_active, config, created_at, updated_at)
+INSERT INTO tenants (id, key, name, description, origin, status, is_active, config, created_at, updated_at)
 VALUES (
     '00000000-0000-0000-0000-000000000000',
+    'system',
     'System',
+    'System-level tenant for platform administration',
+    'UNKNOWN',
+    'active',
     true,
     '{}',
     NOW(),

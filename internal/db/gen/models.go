@@ -64,12 +64,19 @@ type Session struct {
 }
 
 type Tenant struct {
-	ID        uuid.UUID
-	Name      string
-	IsActive  bool
-	Config    json.RawMessage
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Key         sql.NullString
+	Name        string
+	Description sql.NullString
+	Origin      string
+	Subtype     sql.NullString
+	Status      string
+	IsActive    bool
+	Config      json.RawMessage
+	TrialEndsAt sql.NullTime
+	DisabledAt  sql.NullTime
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type User struct {

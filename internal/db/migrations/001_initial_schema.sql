@@ -1,10 +1,19 @@
 CREATE TABLE tenants (
     id UUID PRIMARY KEY,
+    key TEXT UNIQUE,
     name TEXT NOT NULL,
+    description TEXT,
+    origin TEXT NOT NULL DEFAULT 'UNKNOWN',
+    subtype TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
     is_active BOOLEAN NOT NULL DEFAULT true,
     config JSONB NOT NULL DEFAULT '{}',
+    trial_ends_at TIMESTAMPTZ,
+    disabled_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT check_tenant_status CHECK (status IN ('active', 'suspended', 'pending_setup', 'closed')),
+    CONSTRAINT check_tenant_origin CHECK (origin IN ('MORADA', 'RECLAMOS', 'SMARTPET', 'QBUS', 'UNKNOWN'))
 );
 
 CREATE TABLE users (
@@ -75,3 +84,14 @@ CREATE TABLE api_keys (
     expires_at TIMESTAMPTZ,
     last_used_at TIMESTAMPTZ
 );
+
+-- Índices para optimización de búsquedas
+CREATE INDEX idx_tenants_key ON tenants(key);
+CREATE INDEX idx_tenants_origin ON tenants(origin);
+CREATE INDEX idx_tenants_status ON tenants(status);
+CREATE INDEX idx_tenants_origin_subtype ON tenants(origin, subtype);
+CREATE INDEX idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX idx_sessions_refresh_token ON sessions(refresh_token);

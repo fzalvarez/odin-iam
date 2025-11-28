@@ -45,7 +45,7 @@ func (h *TenantHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenant, err := h.service.CreateTenant(r.Context(), req.Name)
+	tenant, err := h.service.CreateTenant(r.Context(), req.Name, req.Key, req.Description, req.Origin, req.Subtype)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -54,9 +54,18 @@ func (h *TenantHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := dto.TenantResponse{
-		ID:        tenant.ID,
-		Name:      tenant.Name,
-		CreatedAt: tenant.CreatedAt,
+		ID:          tenant.ID,
+		Key:         tenant.Key,
+		Name:        tenant.Name,
+		Description: tenant.Description,
+		Origin:      tenant.Origin,
+		Subtype:     tenant.Subtype,
+		Status:      tenant.Status,
+		IsActive:    tenant.IsActive,
+		TrialEndsAt: tenant.TrialEndsAt,
+		DisabledAt:  tenant.DisabledAt,
+		CreatedAt:   tenant.CreatedAt,
+		UpdatedAt:   tenant.UpdatedAt,
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -93,9 +102,18 @@ func (h *TenantHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := dto.TenantResponse{
-		ID:        tenant.ID,
-		Name:      tenant.Name,
-		CreatedAt: tenant.CreatedAt,
+		ID:          tenant.ID,
+		Key:         tenant.Key,
+		Name:        tenant.Name,
+		Description: tenant.Description,
+		Origin:      tenant.Origin,
+		Subtype:     tenant.Subtype,
+		Status:      tenant.Status,
+		IsActive:    tenant.IsActive,
+		TrialEndsAt: tenant.TrialEndsAt,
+		DisabledAt:  tenant.DisabledAt,
+		CreatedAt:   tenant.CreatedAt,
+		UpdatedAt:   tenant.UpdatedAt,
 	}
 
 	json.NewEncoder(w).Encode(res)
@@ -158,9 +176,18 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	res := make([]dto.TenantResponse, len(tenantsList))
 	for i, t := range tenantsList {
 		res[i] = dto.TenantResponse{
-			ID:        t.ID,
-			Name:      t.Name,
-			CreatedAt: t.CreatedAt,
+			ID:          t.ID,
+			Key:         t.Key,
+			Name:        t.Name,
+			Description: t.Description,
+			Origin:      t.Origin,
+			Subtype:     t.Subtype,
+			Status:      t.Status,
+			IsActive:    t.IsActive,
+			TrialEndsAt: t.TrialEndsAt,
+			DisabledAt:  t.DisabledAt,
+			CreatedAt:   t.CreatedAt,
+			UpdatedAt:   t.UpdatedAt,
 		}
 	}
 

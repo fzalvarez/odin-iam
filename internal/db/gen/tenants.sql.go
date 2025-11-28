@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -14,35 +15,54 @@ import (
 )
 
 const CreateTenant = `-- name: CreateTenant :one
-INSERT INTO tenants (id, name, is_active, config, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, is_active, config, created_at, updated_at
+INSERT INTO tenants (id, key, name, description, origin, subtype, status, is_active, config, trial_ends_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, key, name, description, origin, subtype, status, is_active, config, trial_ends_at, disabled_at, created_at, updated_at
 `
 
 type CreateTenantParams struct {
-	ID        uuid.UUID
-	Name      string
-	IsActive  bool
-	Config    json.RawMessage
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Key         sql.NullString
+	Name        string
+	Description sql.NullString
+	Origin      string
+	Subtype     sql.NullString
+	Status      string
+	IsActive    bool
+	Config      json.RawMessage
+	TrialEndsAt sql.NullTime
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error) {
 	row := q.db.QueryRowContext(ctx, CreateTenant,
 		arg.ID,
+		arg.Key,
 		arg.Name,
+		arg.Description,
+		arg.Origin,
+		arg.Subtype,
+		arg.Status,
 		arg.IsActive,
 		arg.Config,
+		arg.TrialEndsAt,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
 	var i Tenant
 	err := row.Scan(
 		&i.ID,
+		&i.Key,
 		&i.Name,
+		&i.Description,
+		&i.Origin,
+		&i.Subtype,
+		&i.Status,
 		&i.IsActive,
 		&i.Config,
+		&i.TrialEndsAt,
+		&i.DisabledAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -50,7 +70,8 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 }
 
 const GetTenantByID = `-- name: GetTenantByID :one
-SELECT id, name, is_active, config, created_at, updated_at FROM tenants
+SELECT id, key, name, description, origin, subtype, status, is_active, config, trial_ends_at, disabled_at, created_at, updated_at 
+FROM tenants
 WHERE id = $1 LIMIT 1
 `
 
@@ -59,17 +80,145 @@ func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, erro
 	var i Tenant
 	err := row.Scan(
 		&i.ID,
+		&i.Key,
 		&i.Name,
+		&i.Description,
+		&i.Origin,
+		&i.Subtype,
+		&i.Status,
 		&i.IsActive,
 		&i.Config,
+		&i.TrialEndsAt,
+		&i.DisabledAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
+const GetTenantByKey = `-- name: GetTenantByKey :one
+SELECT id, key, name, description, origin, subtype, status, is_active, config, trial_ends_at, disabled_at, created_at, updated_at 
+FROM tenants
+WHERE key = $1 LIMIT 1
+`
+
+func (q *Queries) GetTenantByKey(ctx context.Context, key sql.NullString) (Tenant, error) {
+	row := q.db.QueryRowContext(ctx, GetTenantByKey, key)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Origin,
+		&i.Subtype,
+		&i.Status,
+		&i.IsActive,
+		&i.Config,
+		&i.TrialEndsAt,
+		&i.DisabledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const GetTenantsByOrigin = `-- name: GetTenantsByOrigin :many
+SELECT id, key, name, description, origin, subtype, status, is_active, config, trial_ends_at, disabled_at, created_at, updated_at 
+FROM tenants
+WHERE origin = $1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetTenantsByOrigin(ctx context.Context, origin string) ([]Tenant, error) {
+	rows, err := q.db.QueryContext(ctx, GetTenantsByOrigin, origin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Tenant{}
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.Name,
+			&i.Description,
+			&i.Origin,
+			&i.Subtype,
+			&i.Status,
+			&i.IsActive,
+			&i.Config,
+			&i.TrialEndsAt,
+			&i.DisabledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const GetTenantsByOriginAndSubtype = `-- name: GetTenantsByOriginAndSubtype :many
+SELECT id, key, name, description, origin, subtype, status, is_active, config, trial_ends_at, disabled_at, created_at, updated_at 
+FROM tenants
+WHERE origin = $1 AND subtype = $2
+ORDER BY created_at DESC
+`
+
+type GetTenantsByOriginAndSubtypeParams struct {
+	Origin  string
+	Subtype sql.NullString
+}
+
+func (q *Queries) GetTenantsByOriginAndSubtype(ctx context.Context, arg GetTenantsByOriginAndSubtypeParams) ([]Tenant, error) {
+	rows, err := q.db.QueryContext(ctx, GetTenantsByOriginAndSubtype, arg.Origin, arg.Subtype)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Tenant{}
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.Name,
+			&i.Description,
+			&i.Origin,
+			&i.Subtype,
+			&i.Status,
+			&i.IsActive,
+			&i.Config,
+			&i.TrialEndsAt,
+			&i.DisabledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const ListTenants = `-- name: ListTenants :many
-SELECT id, name, is_active, config, created_at, updated_at FROM tenants
+SELECT id, key, name, description, origin, subtype, status, is_active, config, trial_ends_at, disabled_at, created_at, updated_at 
+FROM tenants
 ORDER BY created_at DESC
 `
 
@@ -84,9 +233,16 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 		var i Tenant
 		if err := rows.Scan(
 			&i.ID,
+			&i.Key,
 			&i.Name,
+			&i.Description,
+			&i.Origin,
+			&i.Subtype,
+			&i.Status,
 			&i.IsActive,
 			&i.Config,
+			&i.TrialEndsAt,
+			&i.DisabledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -116,6 +272,29 @@ type UpdateTenantConfigParams struct {
 
 func (q *Queries) UpdateTenantConfig(ctx context.Context, arg UpdateTenantConfigParams) error {
 	_, err := q.db.ExecContext(ctx, UpdateTenantConfig, arg.ID, arg.Config)
+	return err
+}
+
+const UpdateTenantFullStatus = `-- name: UpdateTenantFullStatus :exec
+UPDATE tenants
+SET status = $2, is_active = $3, disabled_at = $4, updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateTenantFullStatusParams struct {
+	ID         uuid.UUID
+	Status     string
+	IsActive   bool
+	DisabledAt sql.NullTime
+}
+
+func (q *Queries) UpdateTenantFullStatus(ctx context.Context, arg UpdateTenantFullStatusParams) error {
+	_, err := q.db.ExecContext(ctx, UpdateTenantFullStatus,
+		arg.ID,
+		arg.Status,
+		arg.IsActive,
+		arg.DisabledAt,
+	)
 	return err
 }
 
