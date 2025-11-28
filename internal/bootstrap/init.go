@@ -12,8 +12,10 @@ import (
 )
 
 const (
+	// SuperAdminRoleID es el UUID del rol Super Admin creado en la migración seed
 	SuperAdminRoleID = "20000000-0000-0000-0000-000000000001"
-	SystemTenantID   = "00000000-0000-0000-0000-000000000000"
+	// SystemTenantID es el UUID del tenant System creado en la migración seed
+	SystemTenantID = "00000000-0000-0000-0000-000000000000"
 )
 
 // InitializeSystem crea el usuario admin inicial si no existe ningún usuario en el sistema
