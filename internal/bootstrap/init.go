@@ -51,8 +51,8 @@ func InitializeSystem(ctx context.Context, db *sql.DB) error {
 	userRepo := users.NewRepository(db)
 	credRepo := auth.NewCredentialsRepository(db)
 
-	// Generar ID para el nuevo usuario
-	adminID := uuid.New()
+	// Nota: adminID se genera pero no se usa directamente porque
+	// userRepo.CreateUser genera su propio UUID internamente
 	tenantID, _ := uuid.Parse(SystemTenantID)
 
 	// Crear usuario

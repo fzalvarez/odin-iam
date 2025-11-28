@@ -25,6 +25,8 @@ INSERT INTO permissions (id, code, description, created_at) VALUES
 ('10000000-0000-0000-0000-000000000008', 'tenants:manage_config', 'Manage tenant config', NOW()),
 ('10000000-0000-0000-0000-000000000009', 'roles:create', 'Create roles', NOW()),
 ('10000000-0000-0000-0000-000000000010', 'roles:assign', 'Assign roles to users', NOW()),
+('10000000-0000-0000-0000-000000000014', 'roles:list', 'List roles', NOW()),
+('10000000-0000-0000-0000-000000000015', 'roles:manage', 'Edit roles and permissions', NOW()),
 ('10000000-0000-0000-0000-000000000011', 'apikeys:create', 'Create API keys', NOW()),
 ('10000000-0000-0000-0000-000000000012', 'apikeys:list', 'List API keys', NOW()),
 ('10000000-0000-0000-0000-000000000013', 'apikeys:delete', 'Delete API keys', NOW())

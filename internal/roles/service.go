@@ -4,8 +4,6 @@ import (
 	"context"
 )
 
-// Eliminada interfaz Repository duplicada. Se asume que está en interfaces.go.
-
 type RoleService struct {
 	repo Repository
 }
